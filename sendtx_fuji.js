@@ -10,7 +10,7 @@ require('dotenv').config();
 
 const privateKey = process.env.SIGNER_PRIVATE_KEY;
 
-const nodeURL = 'https://api.avax-test.network/ext/bc/C/rpc';
+const nodeURL = process.env.PUBLIC_RPC_URL;
 const HTTPSProvider = new ethers.providers.JsonRpcProvider(nodeURL);
 
 const chainId = 43113;
@@ -99,7 +99,7 @@ const sendAvax = async (amount, to, maxFeePerGas = undefined, maxPriorityFeePerG
         { 
           console.log(`Current balance of ${address} is less than ${process.env.BALANCE_ALERT_CONDITION_IN_AVAX} ! balance=${balance*(10**(-18))}`)
         }
-        
+
         const latestNonce = await HTTPSProvider.getTransactionCount(address);
         if (latestNonce == PrevNonce) 
         {
