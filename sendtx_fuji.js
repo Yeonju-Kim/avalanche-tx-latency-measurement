@@ -3,7 +3,8 @@ const Avalanche = require('avalanche').Avalanche;
 const AWS = require('aws-sdk');
 var parquet = require('parquetjs-lite');
 const moment = require('moment');
-const fs = require('fs')
+const fs = require('fs');
+const { type } = require('os');
 
 require('dotenv').config();
 
@@ -93,6 +94,12 @@ const sendAvax = async (amount, to, maxFeePerGas = undefined, maxPriorityFeePerG
     } 
 
     try{
+        const balance = await HTTPSProvider.getBalance(address) // getAssetBalance
+        if(balance*(10**(-18)) < parseFloat(process.env.BALANCE_ALERT_CONDITION_IN_AVAX))
+        { 
+          console.log(`Current balance of ${address} is less than ${process.env.BALANCE_ALERT_CONDITION_IN_AVAX} ! balance=${balance*(10**(-18))}`)
+        }
+        
         const latestNonce = await HTTPSProvider.getTransactionCount(address);
         if (latestNonce == PrevNonce) 
         {
