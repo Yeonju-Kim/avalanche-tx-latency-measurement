@@ -5,6 +5,7 @@ var parquet = require('parquetjs-lite');
 const moment = require('moment');
 const fs = require('fs');
 const { type } = require('os');
+const axios = require('axios');
 
 require('dotenv').config();
 
@@ -48,7 +49,20 @@ async function makeParquetFile(data) {
 
     return filename;
 }
-  
+
+async function sendSlackMsg(msg) {
+  axios.post(process.env.SLACK_API_URL, {
+      'channel':process.env.SLACK_CHANNEL,
+      'mrkdown':true,
+      'text':msg
+  }, {
+      headers: {
+          'Content-type':'application/json',
+          'Authorization':`Bearer ${process.env.SLACK_AUTH}`
+      }
+  })
+}
+
 async function uploadToS3(data){
     const s3 = new AWS.S3();
     const filename = await makeParquetFile(data)
@@ -97,7 +111,8 @@ const sendAvax = async (amount, to, maxFeePerGas = undefined, maxPriorityFeePerG
         const balance = await HTTPSProvider.getBalance(address) // getAssetBalance
         if(balance*(10**(-18)) < parseFloat(process.env.BALANCE_ALERT_CONDITION_IN_AVAX))
         { 
-          console.log(`Current balance of ${address} is less than ${process.env.BALANCE_ALERT_CONDITION_IN_AVAX} ! balance=${balance*(10**(-18))}`)
+            // console.log(`Current balance of ${address} is less than ${process.env.BALANCE_ALERT_CONDITION_IN_AVAX} AVAX! balance=${balance*(10**(-18))}`)
+            sendSlackMsg(`Current balance of ${address} is less than ${process.env.BALANCE_ALERT_CONDITION_IN_AVAX} AVAX! balance=${balance*(10**(-18))}`)
         }
 
         const latestNonce = await HTTPSProvider.getTransactionCount(address);
