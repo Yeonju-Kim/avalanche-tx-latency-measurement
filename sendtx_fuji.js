@@ -14,7 +14,7 @@ const privateKey = process.env.SIGNER_PRIVATE_KEY;
 const nodeURL = process.env.PUBLIC_RPC_URL;
 const HTTPSProvider = new ethers.providers.JsonRpcProvider(nodeURL);
 
-const chainId = 43113;
+const chainId = process.env.CHAIN_ID;
 const avalanche = new Avalanche('api.avax-test.network', undefined, 'https', chainId);
 const cchain = avalanche.CChain();
 
