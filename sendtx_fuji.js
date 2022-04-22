@@ -6,7 +6,7 @@ const moment = require('moment');
 const fs = require('fs');
 const { type } = require('os');
 const axios = require('axios');
-
+const CoinGecko = require('coingecko-api');
 require('dotenv').config();
 
 const privateKey = process.env.SIGNER_PRIVATE_KEY;
@@ -21,6 +21,7 @@ const cchain = avalanche.CChain();
 const wallet = new ethers.Wallet(privateKey);
 const address = wallet.address;
 
+const CoinGeckoClient = new CoinGecko(); 
 var PrevNonce = 0; 
 
 async function makeParquetFile(data) {
@@ -31,6 +32,8 @@ async function makeParquetFile(data) {
         endTime:{type:'TIMESTAMP_MILLIS'},
         chainId:{type:'INT64'},
         latency:{type:'INT64'},
+        txFee:{type:'DOUBLE'},
+        txFeeInUSD:{type:'DOUBLE'},
         error:{type:'UTF8'}
     })
 
@@ -104,13 +107,15 @@ const sendAvax = async (amount, to, maxFeePerGas = undefined, maxPriorityFeePerG
         endTime: 0,
         chainId: chainId,
         latency:0,
+        txFee: 0.0,
+        txFeeInUSD: 0.0,
         error:'',
-    } 
+    }
 
     try{
         const balance = await HTTPSProvider.getBalance(address) // getAssetBalance
         if(balance*(10**(-18)) < parseFloat(process.env.BALANCE_ALERT_CONDITION_IN_AVAX))
-        { 
+        {
             // console.log(`Current balance of ${address} is less than ${process.env.BALANCE_ALERT_CONDITION_IN_AVAX} AVAX! balance=${balance*(10**(-18))}`)
             sendSlackMsg(`Current balance of <${process.env.SCOPE_URL}/address/${address}|${address}> is less than ${process.env.BALANCE_ALERT_CONDITION_IN_AVAX} AVAX! balance=${balance*(10**(-18))} AVAX`)
         }
@@ -124,7 +129,7 @@ const sendAvax = async (amount, to, maxFeePerGas = undefined, maxPriorityFeePerG
         else{
           console.log(`Nonce ${latestNonce} != ${PrevNonce}`)
           PrevNonce = latestNonce
-        }     
+        }
 
         // If the max fee or max priority fee is not provided, then it will automatically calculate using CChain APIs
         ({ maxFeePerGas, maxPriorityFeePerGas } = await calcFeeData(maxFeePerGas, maxPriorityFeePerGas));
@@ -143,8 +148,8 @@ const sendAvax = async (amount, to, maxFeePerGas = undefined, maxPriorityFeePerG
         };
         tx.gasLimit = await HTTPSProvider.estimateGas(tx);
 
-        // Sign transaction 
-        const signedTx = await wallet.signTransaction(tx); //serialized ( unsigned tx , signature ) : rlp encoded (unsigned tx , signature)
+        // Sign transaction
+        const signedTx = await wallet.signTransaction(tx); //serialized (unsigned tx, signature) : rlp encoded (unsigned tx , signature)
         data.txhash = ethers.utils.keccak256(signedTx);
 
         // Write starttime 
@@ -152,17 +157,29 @@ const sendAvax = async (amount, to, maxFeePerGas = undefined, maxPriorityFeePerG
         data.startTime = start
 
         // Sending a signed transaction and waiting for its inclusion
-        await HTTPSProvider.sendTransaction(signedTx);
-        
+        const signature = await (await HTTPSProvider.sendTransaction(signedTx)).wait(); //default confirmation number = 1
+
         // Calculate latency 
         const end = new Date().getTime()
         data.endTime = end
         data.latency = end-start
-        console.log(`${data.executedAt},${data.chainId},${data.txhash},${data.startTime},${data.endTime},${data.latency},${data.error}`) 
+
+        // Get tx Fee and tx Fee in USD 
+        var AVAXtoUSD;
+        await CoinGeckoClient.simple.price({
+            ids: ["avalanche-2"],
+            vs_currencies: ["usd"]
+        }).then((response)=>{
+            AVAXtoUSD= response.data["avalanche-2"]["usd"]
+        })
+                
+        data.txFee = ethers.utils.formatEther(signature.effectiveGasPrice) * signature.gasUsed;
+        data.txFeeInUSD = data.txFee  * AVAXtoUSD;
+        console.log(`${data.executedAt},${data.chainId},${data.txhash},${data.startTime},${data.endTime},${data.latency},${data.txFee},${data.txFeeInUSD},${data.error}`)
     } catch(err){
         console.log("failed to execute.", err.toString())
         data.error = err.toString()
-        console.log(`${data.executedAt},${data.chainId},${data.txhash},${data.startTime},${data.endTime},${data.latency},${data.error}`)
+        console.log(`${data.executedAt},${data.chainId},${data.txhash},${data.startTime},${data.endTime},${data.latency},${data.txFee},${data.txFeeInUSD},${data.error}`) 
     }
     try{
         await uploadToS3(data)
