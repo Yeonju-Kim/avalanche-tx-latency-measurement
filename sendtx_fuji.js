@@ -142,7 +142,7 @@ const sendAvax = async (amount, to, maxFeePerGas = undefined, maxPriorityFeePerG
         await HTTPSProvider.getBlock(latestBlockNumber).then((res)=>{
             data.numOfTxInLatestBlock = res.transactions.length
             data.resourceUsedOfLatestBlock = Number(res.gasUsed)
-        })
+        });
         
         // If the max fee or max priority fee is not provided, then it will automatically calculate using CChain APIs
         ({ maxFeePerGas, maxPriorityFeePerGas } = await calcFeeData(maxFeePerGas, maxPriorityFeePerGas));
