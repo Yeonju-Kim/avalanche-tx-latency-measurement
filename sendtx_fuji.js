@@ -142,14 +142,11 @@ const sendAvax = async (amount, to, maxFeePerGas = undefined, maxPriorityFeePerG
         const latestBlockNumber = await HTTPSProvider.getBlockNumber()
         const endGetBlockNumber = new Date().getTime()
         data.pingTime = endGetBlockNumber - startGetBlockNumber
-        console.log(latestBlockNumber)
         
         // Get latest block for Network congestion info  
         await HTTPSProvider.getBlock(latestBlockNumber).then((res)=>{
-            console.log(res)
             data.numOfTxInLatestBlock = res.transactions.length
             data.resourceUsedOfLatestBlock = Number(res.gasUsed)
-            console.log(Number(res.gasUsed))
         })
         
         // Type 2 transaction is for EIP1559
@@ -207,7 +204,7 @@ const sendAvax = async (amount, to, maxFeePerGas = undefined, maxPriorityFeePerG
 async function main(){
     const start = new Date().getTime()
     console.log(`starting tx latency measurement... start time = ${start}`)
-    sendAvax("0.0", address)
+
     // run sendTx every SEND_TX_INTERVAL(sec).
     const interval = eval(process.env.SEND_TX_INTERVAL)
         setInterval(()=>{
