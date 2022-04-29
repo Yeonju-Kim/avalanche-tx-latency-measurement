@@ -132,11 +132,6 @@ const sendAvax = async (amount, to, maxFeePerGas = undefined, maxPriorityFeePerG
           return;
         }
 
-        // If the max fee or max priority fee is not provided, then it will automatically calculate using CChain APIs
-        ({ maxFeePerGas, maxPriorityFeePerGas } = await calcFeeData(maxFeePerGas, maxPriorityFeePerGas));
-        maxFeePerGas = ethers.utils.parseUnits(maxFeePerGas, "gwei");
-        maxPriorityFeePerGas = ethers.utils.parseUnits(maxPriorityFeePerGas, "gwei");
-
         // Measure latency of getBlockNumber
         const startGetBlockNumber = new Date().getTime()
         const latestBlockNumber = await HTTPSProvider.getBlockNumber()
@@ -149,6 +144,11 @@ const sendAvax = async (amount, to, maxFeePerGas = undefined, maxPriorityFeePerG
             data.resourceUsedOfLatestBlock = Number(res.gasUsed)
         })
         
+        // If the max fee or max priority fee is not provided, then it will automatically calculate using CChain APIs
+        ({ maxFeePerGas, maxPriorityFeePerGas } = await calcFeeData(maxFeePerGas, maxPriorityFeePerGas));
+        maxFeePerGas = ethers.utils.parseUnits(maxFeePerGas, "gwei");
+        maxPriorityFeePerGas = ethers.utils.parseUnits(maxPriorityFeePerGas, "gwei");
+
         // Type 2 transaction is for EIP1559
         const tx = {
             type: 2,
