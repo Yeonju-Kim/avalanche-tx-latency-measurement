@@ -4,7 +4,6 @@ const AWS = require('aws-sdk');
 var parquet = require('parquetjs-lite');
 const moment = require('moment');
 const fs = require('fs');
-const { type } = require('os');
 const axios = require('axios');
 const CoinGecko = require('coingecko-api');
 require('dotenv').config();
@@ -32,9 +31,12 @@ async function makeParquetFile(data) {
         endTime:{type:'TIMESTAMP_MILLIS'},
         chainId:{type:'INT64'},
         latency:{type:'INT64'},
+        error:{type:'UTF8'},
         txFee:{type:'DOUBLE'},
         txFeeInUSD:{type:'DOUBLE'},
-        error:{type:'UTF8'}
+        resourceUsedOfLatestBlock:{type:'INT64'},
+        numOfTxInLatestBlock:{type:'INT64'},
+        pingTime:{type:'INT64'}
     })
 
     var d = new Date()
@@ -107,9 +109,12 @@ const sendAvax = async (amount, to, maxFeePerGas = undefined, maxPriorityFeePerG
         endTime: 0,
         chainId: chainId,
         latency:0,
-        txFee: 0.0,
-        txFeeInUSD: 0.0,
         error:'',
+        txFee: 0.0, 
+        txFeeInUSD: 0.0, 
+        resourceUsedOfLatestBlock: 0,
+        numOfTxInLatestBlock: 0,
+        pingTime:0 
     }
 
     try{
@@ -126,16 +131,27 @@ const sendAvax = async (amount, to, maxFeePerGas = undefined, maxPriorityFeePerG
           console.log(`Nonce ${latestNonce} = ${PrevNonce}`)
           return;
         }
-        else{
-          console.log(`Nonce ${latestNonce} != ${PrevNonce}`)
-          PrevNonce = latestNonce
-        }
 
         // If the max fee or max priority fee is not provided, then it will automatically calculate using CChain APIs
         ({ maxFeePerGas, maxPriorityFeePerGas } = await calcFeeData(maxFeePerGas, maxPriorityFeePerGas));
         maxFeePerGas = ethers.utils.parseUnits(maxFeePerGas, "gwei");
         maxPriorityFeePerGas = ethers.utils.parseUnits(maxPriorityFeePerGas, "gwei");
 
+        // Measure latency of getBlockNumber
+        const startGetBlockNumber = new Date().getTime()
+        const latestBlockNumber = await HTTPSProvider.getBlockNumber()
+        const endGetBlockNumber = new Date().getTime()
+        data.pingTime = endGetBlockNumber - startGetBlockNumber
+        console.log(latestBlockNumber)
+        
+        // Get latest block for Network congestion info  
+        await HTTPSProvider.getBlock(latestBlockNumber).then((res)=>{
+            console.log(res)
+            data.numOfTxInLatestBlock = res.transactions.length
+            data.resourceUsedOfLatestBlock = Number(res.gasUsed)
+            console.log(Number(res.gasUsed))
+        })
+        
         // Type 2 transaction is for EIP1559
         const tx = {
             type: 2,
@@ -158,6 +174,7 @@ const sendAvax = async (amount, to, maxFeePerGas = undefined, maxPriorityFeePerG
 
         // Sending a signed transaction and waiting for its inclusion
         const signature = await (await HTTPSProvider.sendTransaction(signedTx)).wait(); //default confirmation number = 1
+        PrevNonce = latestNonce
 
         // Calculate latency 
         const end = new Date().getTime()
@@ -172,14 +189,13 @@ const sendAvax = async (amount, to, maxFeePerGas = undefined, maxPriorityFeePerG
         }).then((response)=>{
             AVAXtoUSD= response.data["avalanche-2"]["usd"]
         })
-                
         data.txFee = ethers.utils.formatEther(signature.effectiveGasPrice) * signature.gasUsed;
         data.txFeeInUSD = data.txFee  * AVAXtoUSD;
-        console.log(`${data.executedAt},${data.chainId},${data.txhash},${data.startTime},${data.endTime},${data.latency},${data.txFee},${data.txFeeInUSD},${data.error}`)
+        console.log(`${data.executedAt},${data.chainId},${data.txhash},${data.startTime},${data.endTime},${data.latency},${data.txFee},${data.txFeeInUSD},${data.resourceUsedOfLatestBlock},${data.numOfTxInLatestBlock},${data.pingTime},${data.error}`)
     } catch(err){
         console.log("failed to execute.", err.toString())
         data.error = err.toString()
-        console.log(`${data.executedAt},${data.chainId},${data.txhash},${data.startTime},${data.endTime},${data.latency},${data.txFee},${data.txFeeInUSD},${data.error}`) 
+        console.log(`${data.executedAt},${data.chainId},${data.txhash},${data.startTime},${data.endTime},${data.latency},${data.txFee},${data.txFeeInUSD},${data.resourceUsedOfLatestBlock},${data.numOfTxInLatestBlock},${data.pingTime},${data.error}`)
     }
     try{
         await uploadToS3(data)
@@ -191,7 +207,7 @@ const sendAvax = async (amount, to, maxFeePerGas = undefined, maxPriorityFeePerG
 async function main(){
     const start = new Date().getTime()
     console.log(`starting tx latency measurement... start time = ${start}`)
-
+    sendAvax("0.0", address)
     // run sendTx every SEND_TX_INTERVAL(sec).
     const interval = eval(process.env.SEND_TX_INTERVAL)
         setInterval(()=>{
