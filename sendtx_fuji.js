@@ -88,7 +88,7 @@ const calcFeeData = async (maxFeePerGas = undefined, maxPriorityFeePerGas = unde
 
     // Calc MaxPriorityFeePerGas and MaxFeePerGas
     maxPriorityFeePerGas = maxPriorityFeePerGas == undefined ? parseInt(await cchain.getMaxPriorityFeePerGas(), 16) / 1e9 : maxPriorityFeePerGas;
-    maxFeePerGas = maxFeePerGas == undefined ? baseFee + maxPriorityFeePerGas : maxFeePerGas;
+    maxFeePerGas = maxFeePerGas == undefined ? 2 * baseFee + maxPriorityFeePerGas : maxFeePerGas;
 
     if(maxFeePerGas < maxPriorityFeePerGas) {
         throw("Error: Max fee per gas cannot be less than max priority fee per gas");
